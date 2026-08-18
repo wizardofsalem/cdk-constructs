@@ -4,22 +4,51 @@ package cdkapp
 import (
 	"fmt"
 
-	"github.com/wizardofsalem/cdk-constructs/awsutil"
-
 	"github.com/aws/aws-cdk-go/awscdk/v2"
 	"github.com/aws/jsii-runtime-go"
 )
 
+// Env represents the deployment environment.
+type Env int
+
+const (
+	Dev Env = iota
+	Prod
+)
+
+func (env Env) String() string {
+	switch env {
+	case Dev:
+		return "Dev"
+	case Prod:
+		return "Prod"
+	default:
+		panic("unknown env")
+	}
+}
+
+// ParseEnv converts a string to an Env value.
+func ParseEnv(s string) (Env, error) {
+	switch s {
+	case "dev":
+		return Dev, nil
+	case "prod":
+		return Prod, nil
+	default:
+		return 0, fmt.Errorf("invalid env: %q (expected 'dev' or 'prod')", s)
+	}
+}
+
 // CDKApp wraps an AWS CDK App with its resolved environment (dev/prod).
 type CDKApp struct {
 	App         awscdk.App
-	Environment awsutil.Env
+	Environment Env
 }
 
 // GetRemovalPolicyFromEnv returns RETAIN for prod, DESTROY for dev.
-func GetRemovalPolicyFromEnv(env awsutil.Env) awscdk.RemovalPolicy {
+func GetRemovalPolicyFromEnv(env Env) awscdk.RemovalPolicy {
 	switch env {
-	case awsutil.Prod:
+	case Prod:
 		return awscdk.RemovalPolicy_RETAIN
 	default:
 		return awscdk.RemovalPolicy_DESTROY
@@ -34,7 +63,7 @@ func NewCDKApp() CDKApp {
 	return CDKApp{App: app, Environment: env}
 }
 
-func configureEnvironment(app awscdk.App) awsutil.Env {
+func configureEnvironment(app awscdk.App) Env {
 	envInterface := app.Node().TryGetContext(jsii.String("env"))
 	if envInterface == nil {
 		panic("Could not find CDK environment — pass -c env=dev or -c env=prod")
@@ -45,11 +74,7 @@ func configureEnvironment(app awscdk.App) awsutil.Env {
 		panic(fmt.Sprintf("env context value is not a string: %v", envInterface))
 	}
 
-	if envString != "dev" && envString != "prod" {
-		panic(fmt.Sprintf("invalid env value: %q (expected 'dev' or 'prod')", envString))
-	}
-
-	environment, err := awsutil.ParseEnv(envString)
+	environment, err := ParseEnv(envString)
 	if err != nil {
 		panic(err)
 	}
